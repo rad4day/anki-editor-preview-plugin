@@ -11,13 +11,11 @@ class EditorPreview(object):
 
     def __init__(self):
         gui_hooks.editor_did_init.append(self.editor_init_hook)
-        gui_hooks.editor_did_load_note.append(self.editor_note_hook)
-        gui_hooks.editor_did_fire_typing_timer.append(self.onedit_hook)
 
     def editor_init_hook(self, ed: editor.Editor):
-        self.webview = AnkiWebView(title="editor_preview")
+        ed.webview = AnkiWebView(title="editor_preview")
         # This is taken out of clayout.py
-        self.webview.stdHtml(
+        ed.webview.stdHtml(
             ed.mw.reviewer.revHtml(),
             css=["css/reviewer.css"],
             js=[
@@ -30,11 +28,13 @@ class EditorPreview(object):
         layout = ed.outerLayout
         # very arbitrary max size
         # otherwise the browse window is not usable
-        self.webview.setMaximumHeight = 400
-        layout.addWidget(self.webview, 1)
+        ed.webview.setMaximumHeight = 400
+        layout.addWidget(ed.webview, 1)
+        gui_hooks.editor_did_fire_typing_timer.append(lambda o: self.onedit_hook(ed, o))
+        gui_hooks.editor_did_load_note.append(lambda o: None if o != ed else self.editor_note_hook(o))
 
     def editor_note_hook(self, editor):
-        self.onedit_hook(editor.note)
+        self.onedit_hook(editor, editor.note)
 
 
     def _obtainCardText(self, note):
@@ -45,8 +45,9 @@ class EditorPreview(object):
 
         return f"_showAnswer({json.dumps(a)},'{bodyclass}');"
 
-    def onedit_hook(self, note):
-        self.webview.eval(self._obtainCardText(note))
+    def onedit_hook(self, editor, origin):
+        if editor.note == origin:
+            editor.webview.eval(self._obtainCardText(editor.note))
 
 
 eprev = EditorPreview()
