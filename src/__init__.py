@@ -1,16 +1,18 @@
-from aqt.qt import *
 import json
+
 from anki import hooks
-from aqt import editor
-from aqt.webview import AnkiWebView
+from aqt import editor, gui_hooks, mw
+from aqt.utils import *
 from aqt.theme import theme_manager
-from aqt import gui_hooks
-from aqt import mw
+from aqt.webview import AnkiWebView
+
 
 class EditorPreview(object):
 
     def __init__(self):
         gui_hooks.editor_did_init.append(self.editor_init_hook)
+        gui_hooks.editor_did_init_buttons.append(self.editor_init_button_hook)
+
 
     def editor_init_hook(self, ed: editor.Editor):
         ed.webview = AnkiWebView(title="editor_preview")
@@ -25,16 +27,41 @@ class EditorPreview(object):
             ],
             context=ed,
         )
-        layout = ed.outerLayout
         # very arbitrary max size
         # otherwise the browse window is not usable
-        ed.webview.setMaximumHeight = 400
-        layout.addWidget(ed.webview, 1)
+        #  ed.webview.setMaximumHeight = 400
+        self._inject_splitter(ed)
         gui_hooks.editor_did_fire_typing_timer.append(lambda o: self.onedit_hook(ed, o))
         gui_hooks.editor_did_load_note.append(lambda o: None if o != ed else self.editor_note_hook(o))
 
+    def _inject_splitter(self, editor: editor.Editor):
+        layout = editor.outerLayout
+        split = QSplitter()
+        split.setOrientation(Qt.Vertical)
+        web_index = layout.indexOf(editor.web)
+        layout.removeWidget(editor.web)
+        split.addWidget(editor.web)
+        split.addWidget(editor.webview)
+        split.setStretchFactor(0, 0)
+        split.setStretchFactor(1, 1)
+        split.setStretchFactor(2, 1)
+        layout.insertWidget(web_index, split)
+
+
     def editor_note_hook(self, editor):
         self.onedit_hook(editor, editor.note)
+
+    def editor_init_button_hook(self, buttons, editor):
+        b = editor.addButton(icon=None, cmd="_editor_toggle_preview", label='P', tip='Toggle Live Preview',
+                    func=lambda o=editor: self.onEditorPreviewButton(o), disables=False
+             )
+        buttons.append(b)
+
+    def onEditorPreviewButton(self, origin: editor.Editor):
+        if origin.webview.isHidden():
+            origin.webview.show()
+        else:
+            origin.webview.hide()
 
 
     def _obtainCardText(self, note):
