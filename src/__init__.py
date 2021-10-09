@@ -1,6 +1,6 @@
 import json
 
-from anki import hooks
+from anki import hooks, buildinfo
 from aqt import editor, gui_hooks, mw
 from aqt.utils import *
 from aqt.theme import theme_manager
@@ -8,10 +8,23 @@ from aqt.webview import AnkiWebView
 
 
 class EditorPreview(object):
+    js=[
+        "js/mathjax.js",
+        "js/vendor/mathjax/tex-chtml.js",
+        "js/reviewer.js",
+    ]
 
     def __init__(self):
         gui_hooks.editor_did_init.append(self.editor_init_hook)
         gui_hooks.editor_did_init_buttons.append(self.editor_init_button_hook)
+        if int(buildinfo.version.split(".")[2]) < 45: # < 2.1.45
+            self.js = [
+                "js/vendor/jquery.min.js",
+                "js/vendor/css_browser_selector.min.js",
+                "js/mathjax.js",
+                "js/vendor/mathjax/tex-chtml.js",
+                "js/reviewer.js",
+            ]
 
 
     def editor_init_hook(self, ed: editor.Editor):
@@ -20,16 +33,10 @@ class EditorPreview(object):
         ed.webview.stdHtml(
             ed.mw.reviewer.revHtml(),
             css=["css/reviewer.css"],
-            js=[
-                "js/mathjax.js",
-                "js/vendor/mathjax/tex-chtml.js",
-                "js/reviewer.js",
-            ],
+            js=self.js,
             context=ed,
         )
-        # very arbitrary max size
-        # otherwise the browse window is not usable
-        #  ed.webview.setMaximumHeight = 400
+
         self._inject_splitter(ed)
         gui_hooks.editor_did_fire_typing_timer.append(lambda o: self.onedit_hook(ed, o))
         gui_hooks.editor_did_load_note.append(lambda o: None if o != ed else self.editor_note_hook(o))
@@ -75,6 +82,5 @@ class EditorPreview(object):
     def onedit_hook(self, editor, origin):
         if editor.note == origin:
             editor.webview.eval(self._obtainCardText(editor.note))
-
 
 eprev = EditorPreview()
